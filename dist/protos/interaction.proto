@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package interactionpb;
+
+
+// 开始一个互动
+message StartInteractionNtf {
+    int64       interaction_id  = 1;
+    int64       type            = 2; // 1 体感, 2 语音
+    int64       duration        = 3;
+    int64       interval        = 4;
+    string      text            = 5;
+}
+
+// 停止一个互动
+message StopInteractionNtf {
+    int64       interaction_id  = 1;
+}
+
+
+// 学生端操作通知
+message StudentOperationNtf {
+    int64       interaction_id  = 1;
+    int64       student_id      = 2;  
+    string      name            = 3;
+    string      avatar_url      = 4;
+    int64       type            = 5;        
+    int64       value           = 6;
+}
+
