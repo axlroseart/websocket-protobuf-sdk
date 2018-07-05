@@ -5,11 +5,11 @@ package interactionpb;
 
 // 开始一个互动
 message StartInteractionNtf {
-    int64       interaction_id  = 1;
+    int64       interaction_id  = 1; // 互动ID
     int64       type            = 2; // 1 体感, 2 语音
-    int64       duration        = 3;
-    int64       interval        = 4;
-    string      text            = 5;
+    int64       duration        = 3; // 互动总持续时间
+    int64       interval        = 4; // 手表采集数据时间
+    string      text            = 5; // 语音文本
 }
 
 // 停止一个互动
@@ -20,11 +20,11 @@ message StopInteractionNtf {
 
 // 学生端操作通知
 message StudentOperationNtf {
-    int64       interaction_id  = 1;
-    int64       student_id      = 2;  
-    string      name            = 3;
-    string      avatar_url      = 4;
-    int64       type            = 5;        
-    int64       value           = 6;
+    int64       interaction_id  = 1; // 互动ID
+    int64       student_id      = 2; // 学生ID 
+    string      name            = 3; // 学生名称
+    string      avatar_url      = 4; // 头像
+    int64       type            = 5; // 互动类型       
+    int64       value           = 6; // 互动值
 }
 
