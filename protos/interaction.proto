@@ -3,18 +3,73 @@ syntax = "proto3";
 package interactionpb;
 
 
+
+// 互动类型
+enum InteractionType {
+    UnknowmInteractionType  = 0;
+    MotionSensing           = 1; // 体感
+    Voice                   = 2; // 语音
+}
+
+// 学生端操作类型
+enum StudentOptType {
+    UnknownStudentOptType   = 0;     // 未知类型
+    ClapHands               = 1;     // 拍手👏
+    PatLeg                  = 2;     // 拍腿
+}
+
+
+
 // 开始一个互动
 message StartInteractionNtf {
-    int64       interaction_id  = 1; // 互动ID
-    int64       type            = 2; // 1 体感, 2 语音
-    int64       duration        = 3; // 互动总持续时间
-    int64       interval        = 4; // 手表采集数据时间
-    string      text            = 5; // 语音文本
+    int64           lesson_id       = 1; // 课堂ID
+    int64           interaction_id  = 2; // 互动ID
+    int32           task_id         = 3; // 子序号
+    InteractionType type            = 4; // 1体感, 2语音
+    int64           duration        = 5; // 互动总持续时间
+    int64           interval        = 6; // 手表采集数据时间
+    string          text            = 7; // 语音文本
+    int32           textType        = 8; // 文本类型 1: 单词, 2: 句子
+}
+
+// 主教端发起一个互动  主教端手动发起互动后,把互动配置通过这条消息推送给教室端,教室端拿到配置后,按常规互动流程走,
+//  ManualStartInteractionNtf.interaction 为互动模板的json字符串,解析成json后与课件配置表里的Template结构一致
+message ManualStartInteractionNtf {
+    string  interaction = 1;
+}
+
+// 教室端根据视频播放时间自动发起的互动
+message AutoStartInteractionNtf {
+    string  interaction = 1;
+    bool    isMonopoly  = 2; // 是否为大富翁
+}
+
+// 教室端根据视频播放时间自动结束互动
+message AutoFinishInteractionNtf {
+    int64   interaction_id  = 1;
+    bool    isMonopoly      = 2; // 是否为大富翁
+}
+
+// InteractionNextStepNtf 互动切换到下一步
+message InteractionNextStepNtf {
+    int64   interaction_id   = 1;
 }
 
 // 停止一个互动
 message StopInteractionNtf {
-    int64       interaction_id  = 1;
+    int64   interaction_id   = 1;
+}
+
+// 截屏通知
+message StartScreenshotNtf {
+    string fileName = 1;
+}
+
+
+// 录屏通知
+message StartScreenRecordNtf {
+    int64   time        = 1; // 录屏时间
+    string  fileName    = 2; // 文件名称
 }
 
 
@@ -25,6 +80,18 @@ message StudentOperationNtf {
     string      name            = 3; // 学生名称
     string      avatar_url      = 4; // 头像
     int64       type            = 5; // 互动类型       
-    int64       value           = 6; // 互动值
+    int64       value           = 6; // 互动数值
+    int64       star            = 8; // 该次互动星星数
+    int32       task_id         = 9; // 任务ID
+    string      text            = 10; // 本次读音对应的文本
+    int32       textIndex       = 11; // 读多个单词时的索引
 }
 
+// 主教端奖励学生星星通知
+message RewardStudentNtf {
+    int64       studentID   = 1; // 学生ID 
+    string      name        = 2; // 学生名称
+    string      avatarURL   = 3; // 头像
+    int64       star        = 4; // 奖励星星数
+    int32       showType    = 5; // 效果类型
+}

@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package messagepb;
+
+message loginInformation {
+    string   token     = 1;
+    string   deviceID  = 2;       
+    int64    classID   = 3;
+    int64    identityID = 4;
+    int32    role      = 5; 
+}
+
+

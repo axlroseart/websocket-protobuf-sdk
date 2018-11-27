@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package lessonpb;
+
+
+// 一个教室端进入课堂, 推送给主端
+// Flow client <- server
+message ClassroomComeInNtf {
+    int32   class_id    = 1; // 新加入的教室在教室列表中的所以  用来给客户端 计算页数    
+}
+
+// 课程开始, 推送给教室端
+// Flow client <- sever
+message StartLessonNtf {
+}
+
+
+// 通知教室端暂停上课
+message PauseLessonNtf {
+
+}
+
+// 恢复上课通知
+message ContinueLessonNtf {
+
+}
+
+
+// 主播更换画面
+message ChangeLecturerFrameNtf {
+    int32   frame_type  = 1;  // 1 主播画面, 2 倒计时画面
+}
+
+// 停止上课
+message FinishLessonNtf  {
+
+}
+
+// 课间休息,教室端通知
+message StopLessonNtf {
+
+}
+
+//add by peter 
+//服务其--->教室端PC 获取设备信息的指令 以及wifi是否配置信息
+message GetWatchAndWifiInfoNTF{
+    int32  forced     = 1;  // 1: true    2: false 
+    int64  identifyID = 2;  // 强制导入   指定顶导入哪一个人
+    int64  classID    = 3;  // 指定当前导入的班级
+}
+
+//强制手表离线通知
+message ForceWatchOfflineNTF{
+}
+
+message StudentInfo{
+    int64   studentID = 1;  
+    int64   clientID  = 2;
+    string  Name      = 3;       
+    string  Avatar    = 4;  
+}
+
+//上报结果到PAD端信息导入
+message ReportImportInfo{
+    int32   errorCode         = 1;
+    bool    forced            = 2;
+    int64   classID           = 3;
+    repeated StudentInfo studentslist  = 4;
+}
+
+//是为了增加 B方案增加的接口
+message StudentWatchInfo{
+    int64   studentID = 1;  
+    string  name      = 2;       
+    string  watchdev  = 3; 
+    int32   slotID    = 4; 
+}
+//是为了增加 B方案增加的接口 end 
+
+//上报结果到PAD端信息
+message ReportSystemInfo{
+    int32   errorCode         = 1;
+    string  message           = 2;
+    bool    forced            = 3;
+    int32   freeWatchNum      = 4;
+    int32   freeStudentNum    = 5;
+    int32   onlineNum         = 6;
+    int32   totalStudentNum   = 7;
+    int64   classID           = 8;
+    repeated StudentWatchInfo bindinfo  = 9;
+}
+
+// 服务器到---->教室端;设置wifi信息
+message ImportWatchInfoNTF{
+    int32 forced      = 1;  // 1: true  2: false 
+    int64 identifyID  = 2;  // 强制导入   指定顶导入哪一个人 
+    int64 classID     = 3;  // 班级ID
+    repeated StudentWatchInfo bindinfo  = 4;
+}
+//add by peter end 
+
+message LessonFinishNtf {
+    
+}
+
+// 课程进度同步
+message LessonTimelineSyncNtf {
+    int32   status  = 1; // 当前状态
+    int64   offset  = 2; // 时间偏移量    
+    bool    pause   = 3; // 是否暂停
+}

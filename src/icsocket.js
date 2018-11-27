@@ -2,28 +2,32 @@
  * WebSocket SDK
  * 建立websocket连接
  * 数据编解码
- * 心跳机制（每隔30秒递增发送一次心跳请求，连接关闭后会在(15*2)s内递增重连，尝试10次后放弃）
+ * 心跳机制（每隔30秒递增发送一次心跳请求，连接关闭后会在15s内递增重连，尝试10次后放弃）
  * Ryan
  * 2018年7月2日 19:46:33
  */
 import protobuf from 'protobufjs'
-
-const _socketUrl = '172.16.20.225'
-const _socketPort = '8099'
+import fs from 'fs'
+const _socketUrl = '192.168.30.3'
+const _socketPort = '80'
 
 /**
  *
- * @param {*token  身份验证} token
+ * @param {*params 身份验证} params
  * @param {*socket 服务地址} socketUrl
  * @param {*socket 服务端口} socketPort
  * @param {*socket 数据回调} callback
  */
-const ICSocket = function(token, callback, socketUrl, socketPort) {
+const ICSocket = function(params, callback, socketUrl, socketPort) {
+  // // 最大连接次数
+  // let MAX_CONNECT_TIMES = 10
+  // // 重连时间
+  // let DELAY = 15000
   // 最大连接次数
-  let MAX_CONNECT_TIMES = 10
+  this.maxConnectTimes = 10
   // 重连时间
-  let DELAY = 15000
-
+  this.delay = 15000
+  this.defaultVal = 1
   // 请求头信息总长
   this.rawHeaderLen = 14
   // 总消息偏移量
@@ -36,25 +40,22 @@ const ICSocket = function(token, callback, socketUrl, socketPort) {
   this.seqOffset = 10
   // 消息名长度的长度
   this.headLen = 2
+  // socket对象
+  this.params = params
+  // 退出flag
+  this.quit = false
   // socket server 配置
   this.socketUrl = socketUrl || _socketUrl
   this.socketPort = socketPort || _socketPort
-  this.url = 'ws://' + this.socketUrl + ':' + this.socketPort + '/sub'
+  this.url = 'ws://' + this.socketUrl + ':' + this.socketPort
 
   this.callback = callback
   this.textEncoder = new TextEncoder()
 
-  this.init().then(() => {
-    this.webskt.onopen = () => {
-      // 第一次连接，身份验证
-      this.auth(token)
-    }
-  })
-  // 成功建立连接之后的处理方法
-  return this.resolveMsg(MAX_CONNECT_TIMES, DELAY)
+  this.init()
 }
 
-ICSocket.prototype.heartbeat = function() {
+ICSocket.prototype.heartbeat = function(webskt) {
   // 心跳请求，只需要发送请求头，不包含消息体
   let headerBuf = new ArrayBuffer(this.rawHeaderLen)
   let headerView = new DataView(headerBuf, 0)
@@ -62,30 +63,54 @@ ICSocket.prototype.heartbeat = function() {
   headerView.setInt16(this.headerOffset, this.rawHeaderLen)
   headerView.setInt32(this.opOffset, 1)
   headerView.setInt32(this.seqOffset, 1)
-  this.webskt.send(headerBuf)
-  console.log('ICSocket send: heartbeat')
+  webskt.send(headerBuf)
+  console.log('======> ICSocket send: heartbeat')
 }
 
 // 整个缓冲区包括请求头和消息体
-ICSocket.prototype.auth = function(token) {
+ICSocket.prototype.auth = function(params, webskt) {
   // ------------------- 缓冲区建立 -------------------
   // 建立长度为14的header缓冲区
   let headerBuf = new ArrayBuffer(this.rawHeaderLen)
   // 创建DataView对象
   let headerView = new DataView(headerBuf, 0)
   // 将Token转化为缓冲区数据
-  let bodyBuf = this.textEncoder.encode(token)
-  // ------------------- 缓冲区写入 -------------------
-  // 消息总长度
-  headerView.setInt32(this.packetOffset, this.rawHeaderLen + bodyBuf.byteLength)
-  // 消息头长度
-  headerView.setInt16(this.headerOffset, this.rawHeaderLen)
-  // 操作类型
-  headerView.setInt32(this.opOffset, 3)
-  // 消息序号
-  headerView.setInt32(this.seqOffset, 1)
-  // 合并请求头和消息体，并发送
-  this.webskt.send(this.mergeArrayBuffer(headerBuf, bodyBuf))
+  // let bodyBuf = this.textEncoder.encode(token)
+  // 将需要传递的参数，转化为缓冲区数据
+  let query = 'messagepb.loginInformation'
+  this.loadpb('protos/message.proto').then((res) => {
+    // 创建pb缓冲区数据
+    let info = res.lookupType(query)
+    let currInfo = info.create(params)
+    // 解码出要提交的数据
+    let bodyBuf = info.encode(currInfo).finish()
+    // message.name转为buffer数据
+    let queryToBytes = Buffer.from(query)
+    // 数据类buffer合并
+    // let allData = Buffer.concat([queryToBytes, bodyBuf])
+    let allData = this.mergeArrayBuffer(queryToBytes, bodyBuf)
+    // allData = Buffer.from(allData)
+    // 以总长为单位，定义消息体的区间长度（2为message.name长度）
+    let bytearr = new ArrayBuffer(2 + allData.length)
+    let dv = new DataView(bytearr)
+    // message.name长度填充
+    dv.setInt16(0, queryToBytes.length)
+    // 数据类buffer填充
+    for (var i = 0; i < allData.length; i++) {
+      dv.setUint8(2 + i, allData[i], false)
+    }
+    // ------------------- 缓冲区写入 -------------------
+    // 消息总长度
+    headerView.setInt32(this.packetOffset, this.rawHeaderLen + bytearr.byteLength)
+    // 消息头长度
+    headerView.setInt16(this.headerOffset, this.rawHeaderLen)
+    // 操作类型
+    headerView.setInt32(this.opOffset, 3)
+    // 消息序号
+    headerView.setInt32(this.seqOffset, 1)
+    // 合并请求头和消息体，并发送
+    webskt.send(this.mergeArrayBuffer(headerBuf, bytearr).buffer)
+  })
 }
 
 // 合并缓冲区数据方法
@@ -95,37 +120,28 @@ ICSocket.prototype.mergeArrayBuffer = function(ab1, ab2) {
   let res = new Uint8Array(ab1.byteLength + ab2.byteLength)
   res.set(u81, 0)
   res.set(u82, ab1.byteLength)
-  return res.buffer
+  return res
 }
 
 // ICSocket初始化，新建WebSocket连接
-ICSocket.prototype.init = function() {
-  let me = this
-  if (this.MAX_CONNECT_TIMES === 0) {
+ICSocket.prototype.init = function(params) {
+  let self = this
+  console.log('======> socket init...')
+  if (self.maxConnectTimes === 0) {
     return
   }
-  return new Promise(function(resolve, reject) {
-    me.webskt = new WebSocket(me.url)
-    me.webskt.binaryType = 'arraybuffer'
-    resolve()
-  })
-}
+  var webskt = new WebSocket(this.url)
+  self.webskt = webskt
+  webskt.binaryType = 'arraybuffer'
+  webskt.onopen = () => {
+    self.quit = false
+    console.log('======> socket on open.')
+    // 第一次连接，身份验证
+    this.auth(this.params, webskt)
+  }
 
-// proto文件查找，解析方法
-ICSocket.prototype.loadpb = (url) => {
-  let root = new protobuf.Root()
-  return new Promise((resolve, reject) => {
-    root.load(url, { keepCase: true }).then((root) => {
-      resolve(root)
-    })
-  })
-}
-
-// 消息解码及处理过程
-ICSocket.prototype.resolveMsg = function(max, delay) {
-  let self = this
   let heartbeatInterval
-  self.webskt.onmessage = function(evt) {
+  webskt.onmessage = function(evt) {
     let data = evt.data
     let dataView = new DataView(data, 0)
     let realData = []
@@ -138,26 +154,28 @@ ICSocket.prototype.resolveMsg = function(max, delay) {
     let op = dataView.getInt32(self.opOffset)
     // 消息序号
     let seq = dataView.getInt32(self.seqOffset)
-    console.log('Websocket receiveHeader: packetLen=' + packetLen, 'headerLen=' + headerLen, 'op=' + op, 'seq=' + seq)
+    console.log('======> Websocket receiveHeader: packetLen=' + packetLen, 'headerLen=' + headerLen, 'op=' + op, 'seq=' + seq)
 
+    let msgName = ''
+    let protoUrl = ''
+    let msgNameLen
     switch (op) {
       case 4:
         // 心跳请求
-        self.heartbeat()
+        self.heartbeat(webskt)
         heartbeatInterval = setInterval(function() {
-          self.heartbeat()
-        }, 30 * 1000)
+          self.heartbeat(webskt)
+        }, 10 * 1000)
         break
       case 2:
         // 心跳回复
-        console.log('ICSocket receive: heartbeat')
+        console.log('======> ICSocket receive: heartbeat')
         break
       case 5:
         // 待解析的数据体
         // 消息名数据长度
-        let msgNameLen = dataView.getUint16(self.rawHeaderLen)
         // console.log('msgNameLen: ', msgNameLen)
-        let msgName = ''
+        msgNameLen = dataView.getUint16(self.rawHeaderLen)
         // 遍历包arraybuffer区间，拼接字符串，最终得到massage name
         for (let index = 0; index < msgNameLen; index++) {
           msgName = msgName + String.fromCharCode(dataView.getUint8(index + self.rawHeaderLen + self.headLen))
@@ -170,25 +188,51 @@ ICSocket.prototype.resolveMsg = function(max, delay) {
         }
         realData = Buffer.from(realData)
         // 载入.proto文件并查找对应的message name
-        const protoUrl = './protos/interaction.proto'
+        if (msgName.split('.')[0] === 'lessonpb') {
+          protoUrl = 'protos/lesson.proto'
+        } else {
+          protoUrl = 'protos/interaction.proto'
+        }
         self.loadpb(protoUrl).then(function(res) {
           let resInfo = res.lookup(msgName)
           // 解码，得到最终数据
           realData = resInfo.decode(realData)
           if (self.callback) {
-            self.callback(realData)
+            self.callback({
+              realData: realData,
+              protoName: msgName.split('.')[1]
+            })
           }
         })
         break
     }
   }
 
-  self.webskt.onclose = function() {
+  webskt.onclose = function() {
+    console.log('======> !!!!!! websocket closed !!!!!!')
     if (heartbeatInterval) clearInterval(heartbeatInterval)
-    setTimeout(function() {
-      self.resolveMsg(--max, delay * 2)
-    }, delay)
+    if (!self.quit) {
+      setTimeout(function() {
+        console.log('======> >>>>>> ready to reconnect <<<<<<')
+        self.init(--self.maxConnectTimes, self.delay)
+      }, self.delay)
+    }
   }
 }
+
+// proto文件查找，解析方法
+ICSocket.prototype.loadpb = (url) => {
+  let root = new protobuf.Root()
+  return new Promise((resolve) => {
+    root.load(url, { keepCase: true }).then((root) => {
+      resolve(root)
+    })
+  })
+}
+
+// 消息解码及处理过程
+// ICSocket.prototype.resolveMsg = function(webskt) {
+//   console.log('======> socket resolveMsg.')
+// }
 
 export default ICSocket

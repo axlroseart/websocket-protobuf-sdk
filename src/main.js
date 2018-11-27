@@ -4,6 +4,14 @@ import ICSocket from './icsocket'
 const token = ''
 
 // 实例化SDK，传入Token值通过校验从而通过回调拿到socket服务推送的消息数据
-let kkk = new ICSocket(token, function(data) {
+let kkk = new ICSocket({
+  token: token,
+  deviceID: '',
+  classID: '',
+  identityID: '',
+  role: ''
+}, function(data) {
   console.log('got websocket message: ', data)
 })
+
+console.log(kkk)
