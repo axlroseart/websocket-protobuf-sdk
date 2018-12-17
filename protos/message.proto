@@ -2,6 +2,25 @@ syntax = "proto3";
 
 package messagepb;
 
+message ProfileInfo {
+    int64   identityID  = 1;
+    int32   role        = 2;
+    int32   gender      = 3; 
+    string  name        = 4;
+    string  avatar      = 5;
+    bool    modify      = 6;
+    bool    first       = 7;
+}
+
+message WatchLoginRequest {
+    int64   classID     = 1;
+    string  deviceID    = 2;
+}
+
+message WatchLoginResponse {
+    ProfileInfo profile = 1;
+}
+
 message loginInformation {
     string   token     = 1;
     string   deviceID  = 2;       

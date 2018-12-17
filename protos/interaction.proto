@@ -30,6 +30,7 @@ message StartInteractionNtf {
     int64           interval        = 6; // 手表采集数据时间
     string          text            = 7; // 语音文本
     int32           textType        = 8; // 文本类型 1: 单词, 2: 句子
+    int32           method          = 9; // 采集方法: 1:持续上传, 2:上送最佳分数
 }
 
 // 主教端发起一个互动  主教端手动发起互动后,把互动配置通过这条消息推送给教室端,教室端拿到配置后,按常规互动流程走,
@@ -94,4 +95,99 @@ message RewardStudentNtf {
     string      avatarURL   = 3; // 头像
     int64       star        = 4; // 奖励星星数
     int32       showType    = 5; // 效果类型
+}
+
+
+// 手表上送语音数据
+// Flow watch -> server
+message WatchReportVoiceRequest {
+    int64   lessonID        = 1;
+    int64   classID         = 2;
+    int64   interactionID   = 3;
+    int32   taskID          = 4;
+    int32   studentID       = 5;
+    string  text            = 6;
+    int64   value           = 7;
+}
+
+// 手表上送语音数据响应
+// Flow watch <- server
+message WatchReportVoiceResponse {
+
+}
+
+// 手表上送手势数据
+// Flow watch -> server
+message WatchReportGestureRequest {
+    int64   lessonID        = 1;
+    int64   classID         = 2;
+    int64   interactionID   = 3;
+    int32   taskID          = 4;
+    int32   studentID       = 5;
+    int64   value           = 6;
+}
+
+// 手表上送手势数据响应
+// Flow watch <- server
+message WatchReportGestureResponse {
+
+}
+
+// 手表上送手势数据(上送原始数据)
+// Flow watch -> server
+message WatchReportGestureWithMetadataRequest {
+    int64           lessonID        = 1;
+    int64           classID         = 2;
+    int64           interactionID   = 3;
+    int32           taskID          = 4;
+    int32           studentID       = 5;
+    repeated double timeSeries      = 6;
+    repeated double timeLine        = 7;
+}
+
+// 手表上送手势数据响应
+// Flow watch <- server
+message WatchReportGestureWithMetadataResponse {
+
+}
+
+// 教室端互动开始通知
+// Flow classkit -> server
+message InteractionBeginNotify {
+    int64   lessonID        = 1;
+    int64   classID         = 2;
+    int64   interactionID   = 3;
+    string  config          = 4;
+}
+
+message InteractionBeginNotifyResponse {
+
+}
+
+// 教室端互动结束通知
+// Flow classkit -> server
+message InteractionEndNotify {
+    int64   lessonID        = 1;
+    int64   classID         = 2;
+    int64   interactionID   = 3;
+}
+
+// 教室端开始一个互动
+// Flow classkit -> server
+message ClasskitStartInteractionRequest {
+    int64   lessonID        = 1;
+    int64   classID         = 2;
+    int64   interactionID   = 3;
+    int32   taskID          = 4;
+    string  config          = 5;
+}
+
+message InteractionEndNotifyResponse {
+
+}
+
+// 教室端开始一个互动响应
+// Flow classkit <- server
+message ClasskitStartInteractionResponse {
+
 }

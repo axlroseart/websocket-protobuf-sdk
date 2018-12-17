@@ -7,9 +7,10 @@
  * 2018年7月2日 19:46:33
  */
 import protobuf from 'protobufjs'
-import fs from 'fs'
-const _socketUrl = '192.168.30.3'
-const _socketPort = '80'
+import globalConfig from '../config'
+
+const _socketUrl = ''
+const _socketPort = ''
 
 /**
  *
@@ -47,7 +48,7 @@ const ICSocket = function(params, callback, socketUrl, socketPort) {
   // socket server 配置
   this.socketUrl = socketUrl || _socketUrl
   this.socketPort = socketPort || _socketPort
-  this.url = 'ws://' + this.socketUrl + ':' + this.socketPort
+  this.url = 'ws://' + this.socketUrl + ':' + this.socketPort + ''
 
   this.callback = callback
   this.textEncoder = new TextEncoder()
@@ -55,6 +56,7 @@ const ICSocket = function(params, callback, socketUrl, socketPort) {
   this.init()
 }
 
+let heartbeatInterval
 ICSocket.prototype.heartbeat = function(webskt) {
   // 心跳请求，只需要发送请求头，不包含消息体
   let headerBuf = new ArrayBuffer(this.rawHeaderLen)
@@ -63,54 +65,23 @@ ICSocket.prototype.heartbeat = function(webskt) {
   headerView.setInt16(this.headerOffset, this.rawHeaderLen)
   headerView.setInt32(this.opOffset, 1)
   headerView.setInt32(this.seqOffset, 1)
+  // 检测到连接状态为关闭时后终止心跳
+  if (webskt.readyState === 3) {
+    if (heartbeatInterval) clearInterval(heartbeatInterval)
+    return
+  }
   webskt.send(headerBuf)
   console.log('======> ICSocket send: heartbeat')
 }
 
 // 整个缓冲区包括请求头和消息体
 ICSocket.prototype.auth = function(params, webskt) {
-  // ------------------- 缓冲区建立 -------------------
-  // 建立长度为14的header缓冲区
-  let headerBuf = new ArrayBuffer(this.rawHeaderLen)
-  // 创建DataView对象
-  let headerView = new DataView(headerBuf, 0)
   // 将Token转化为缓冲区数据
   // let bodyBuf = this.textEncoder.encode(token)
   // 将需要传递的参数，转化为缓冲区数据
   let query = 'messagepb.loginInformation'
-  this.loadpb('protos/message.proto').then((res) => {
-    // 创建pb缓冲区数据
-    let info = res.lookupType(query)
-    let currInfo = info.create(params)
-    // 解码出要提交的数据
-    let bodyBuf = info.encode(currInfo).finish()
-    // message.name转为buffer数据
-    let queryToBytes = Buffer.from(query)
-    // 数据类buffer合并
-    // let allData = Buffer.concat([queryToBytes, bodyBuf])
-    let allData = this.mergeArrayBuffer(queryToBytes, bodyBuf)
-    // allData = Buffer.from(allData)
-    // 以总长为单位，定义消息体的区间长度（2为message.name长度）
-    let bytearr = new ArrayBuffer(2 + allData.length)
-    let dv = new DataView(bytearr)
-    // message.name长度填充
-    dv.setInt16(0, queryToBytes.length)
-    // 数据类buffer填充
-    for (var i = 0; i < allData.length; i++) {
-      dv.setUint8(2 + i, allData[i], false)
-    }
-    // ------------------- 缓冲区写入 -------------------
-    // 消息总长度
-    headerView.setInt32(this.packetOffset, this.rawHeaderLen + bytearr.byteLength)
-    // 消息头长度
-    headerView.setInt16(this.headerOffset, this.rawHeaderLen)
-    // 操作类型
-    headerView.setInt32(this.opOffset, 3)
-    // 消息序号
-    headerView.setInt32(this.seqOffset, 1)
-    // 合并请求头和消息体，并发送
-    webskt.send(this.mergeArrayBuffer(headerBuf, bytearr).buffer)
-  })
+  let url = 'protos/message.proto'
+  this.encode(query, url, params, 3, webskt)
 }
 
 // 合并缓冲区数据方法
@@ -124,7 +95,7 @@ ICSocket.prototype.mergeArrayBuffer = function(ab1, ab2) {
 }
 
 // ICSocket初始化，新建WebSocket连接
-ICSocket.prototype.init = function(params) {
+ICSocket.prototype.init = function() {
   let self = this
   console.log('======> socket init...')
   if (self.maxConnectTimes === 0) {
@@ -140,7 +111,6 @@ ICSocket.prototype.init = function(params) {
     this.auth(this.params, webskt)
   }
 
-  let heartbeatInterval
   webskt.onmessage = function(evt) {
     let data = evt.data
     let dataView = new DataView(data, 0)
@@ -192,6 +162,7 @@ ICSocket.prototype.init = function(params) {
           protoUrl = 'protos/lesson.proto'
         } else {
           protoUrl = 'protos/interaction.proto'
+          // protoUrl = `${path.join(__dirname, '../../../protos/interaction.proto')}`
         }
         self.loadpb(protoUrl).then(function(res) {
           let resInfo = res.lookup(msgName)
@@ -227,6 +198,49 @@ ICSocket.prototype.loadpb = (url) => {
     root.load(url, { keepCase: true }).then((root) => {
       resolve(root)
     })
+  })
+}
+
+// 编码过程
+ICSocket.prototype.encode = function(query, url, params, reqType, webskt) {
+  let self = this
+  // ------------------- 缓冲区建立 -------------------
+  // 建立长度为14的header缓冲区
+  let headerBuf = new ArrayBuffer(self.rawHeaderLen)
+  // 创建DataView对象
+  let headerView = new DataView(headerBuf, 0)
+  this.loadpb(url).then((res) => {
+    // 创建pb缓冲区数据
+    let info = res.lookupType(query)
+    let currInfo = info.create(params)
+    // 解码出要提交的数据
+    let bodyBuf = info.encode(currInfo).finish()
+    // message.name转为buffer数据
+    let queryToBytes = Buffer.from(query)
+    // 数据类buffer合并
+    // let allData = Buffer.concat([queryToBytes, bodyBuf])
+    let allData = this.mergeArrayBuffer(queryToBytes, bodyBuf)
+    // allData = Buffer.from(allData)
+    // 以总长为单位，定义消息体的区间长度（2为message.name长度）
+    let bytearr = new ArrayBuffer(2 + allData.length)
+    let dv = new DataView(bytearr)
+    // message.name长度填充
+    dv.setInt16(0, queryToBytes.length)
+    // 数据类buffer填充
+    for (var i = 0; i < allData.length; i++) {
+      dv.setUint8(2 + i, allData[i], false)
+    }
+    // ------------------- 缓冲区写入 -------------------
+    // 消息总长度
+    headerView.setInt32(self.packetOffset, self.rawHeaderLen + bytearr.byteLength)
+    // 消息头长度
+    headerView.setInt16(self.headerOffset, self.rawHeaderLen)
+    // 操作类型
+    headerView.setInt32(self.opOffset, reqType)
+    // 消息序号
+    headerView.setInt32(self.seqOffset, 1)
+    // 合并请求头和消息体，并发送
+    webskt.send(self.mergeArrayBuffer(headerBuf, bytearr).buffer)
   })
 }
 

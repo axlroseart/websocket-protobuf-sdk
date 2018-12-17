@@ -109,3 +109,28 @@ message LessonTimelineSyncNtf {
     int64   offset  = 2; // 时间偏移量    
     bool    pause   = 3; // 是否暂停
 }
+
+enum AwardType {
+    UnknowWard              = 0; // 未知奖励
+    GreatestProgressAward   = 1; // 进步小明星
+    BestBehaviorAward       = 2; // 文明小明星
+    BestConcentrationAward  = 3; // 专注小明星
+    MostPositiveAward       = 4; // 勤奋小明星
+    MostCreativeAward       = 5; // 创意小明星
+    BestPronunciationAward  = 6; // 励步好声音      
+}
+
+
+message StudentProfile {
+    int64   id      = 1;
+    string  avatar  = 2;
+    string  name    = 3;
+
+}
+
+
+// 正式颁奖
+message AwardsAfterClassNtf {
+    AwardType               awardID     = 1; // 奖励类型
+    repeated StudentProfile students    = 2; // 学生基本信息
+}
